@@ -18,8 +18,8 @@ import android.os.Environment;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import android.text.InputType;
 import android.util.Log;
 import android.view.Menu;
@@ -31,6 +31,8 @@ import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.CompoundButton.OnCheckedChangeListener;
 import android.widget.Spinner;
+
+import info.guardianproject.phoneypot.R;
 
 public class StartActivity extends Activity {
 	
@@ -46,8 +48,20 @@ public class StartActivity extends Activity {
         /*
          * We create an application directory to store images and audio
          */
-        File directory = new File(Environment.getExternalStorageDirectory()+preferences.getDirPath());
-        directory.mkdirs();
+        File directory = new File(getExternalFilesDir(null), preferences.getDirPath());
+        if (!directory.exists()) {
+            boolean success = directory.mkdirs();
+            if (!success) {
+                Log.e("StartActivity", "Failed to create directory: " + directory.getAbsolutePath());
+            } else {
+                Log.i("StartActivity", "Directory created: " + directory.getAbsolutePath());
+            }
+        } else {
+            Log.i("StartActivity", "Directory already exists: " + directory.getAbsolutePath());
+        }
+
+
+        Log.i("StartActivity", "Files will be saved in directory: " + directory.getAbsolutePath());
         
         /**
          * Checkboxes for enabled app options

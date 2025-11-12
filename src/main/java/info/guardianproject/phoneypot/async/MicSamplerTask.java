@@ -1,44 +1,40 @@
-/*
- * Copyright (c) 2013-2015 Marco Ziccardi, Luca Bonato
- * Licensed under the MIT license.
- */
-
-
 package info.guardianproject.phoneypot.async;
-
 
 import java.io.IOException;
 
+import android.content.Context;
 import android.os.AsyncTask;
 import android.util.Log;
 
 import info.guardianproject.phoneypot.codec.AudioCodec;
 
-public class MicSamplerTask extends AsyncTask<Void,Object,Void> {
-	
+public class MicSamplerTask extends AsyncTask<Void, Object, Void> {
+
 	private MicListener listener = null;
-	private AudioCodec volumeMeter = new AudioCodec();
+	private AudioCodec volumeMeter;
 	private boolean sampling = true;
 	private boolean paused = false;
-	
+	private Context context;
+
 	public static interface MicListener {
-		public void onSignalReceived(short[] signal);
-		public void onMicError();
+		void onSignalReceived(short[] signal);
+		void onMicError();
 	}
-	
+
+	public MicSamplerTask(Context context) {
+		this.context = context;
+		this.volumeMeter = new AudioCodec(); // No context in constructor
+	}
+
 	public void setMicListener(MicListener listener) {
 		this.listener = listener;
-	}
-	
-	protected Void onPreExecute(Void...params) {
-		return null;
 	}
 
 	@Override
 	protected Void doInBackground(Void... params) {
-		
+
 		try {
-			volumeMeter.start();
+			volumeMeter.start(context); // Pass context here
 		} catch (Exception e) {
 			Log.e("MicSamplerTask", "Failed to start VolumeMeter");
 			e.printStackTrace();
@@ -47,7 +43,7 @@ public class MicSamplerTask extends AsyncTask<Void,Object,Void> {
 			}
 			return null;
 		}
-		
+
 		while (true) {
 
 			if (listener != null) {
@@ -56,10 +52,10 @@ public class MicSamplerTask extends AsyncTask<Void,Object,Void> {
 			}
 			try {
 				Thread.sleep(500);
-			} catch (InterruptedException e) { 
-				//Nothing to do we exit next line 
-				
+			} catch (InterruptedException e) {
+				break; // Exit on interrupt
 			}
+
 			boolean restartVolumeMeter = false;
 			if (paused) {
 				restartVolumeMeter = true;
@@ -70,44 +66,48 @@ public class MicSamplerTask extends AsyncTask<Void,Object,Void> {
 				try {
 					Thread.sleep(1000);
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					break;
 				}
 			}
 			if (restartVolumeMeter) {
 				try {
 					Log.i("MicSamplerTask", "Task restarted");
-					volumeMeter = new AudioCodec();
-					volumeMeter.start();
+					volumeMeter = new AudioCodec(); // No context here
+					volumeMeter.start(context); // Pass context here
 					sampling = true;
-				} catch (IllegalStateException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
+				} catch (IllegalStateException | IOException e) {
 					e.printStackTrace();
 				}
 			}
-			if (isCancelled()) { volumeMeter.stop(); sampling = false; return null; }
-		}	
+			if (isCancelled()) {
+				volumeMeter.stop();
+				sampling = false;
+				return null;
+			}
+		}
+
+		volumeMeter.stop();
+		return null;
 	}
-	
+
 	public boolean isSampling() {
 		return sampling;
 	}
-	
+
 	public void restart() {
 		paused = false;
 		sampling = true;
 	}
-	
+
 	public void pause() {
-		paused = true;		
+		paused = true;
 	}
-	
+
 	@Override
-    protected void onProgressUpdate(Object... progress) {
+	protected void onProgressUpdate(Object... progress) {
 		short[] data = (short[]) progress[0];
-        listener.onSignalReceived(data);
-    }
+		if (listener != null) {
+			listener.onSignalReceived(data);
+		}
+	}
 }

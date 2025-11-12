@@ -16,7 +16,7 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.PowerManager;
-import android.support.v4.app.NotificationCompat;
+import androidx.core.app.NotificationCompat;
 import android.telephony.SmsManager;
 
 import java.util.Date;
@@ -144,14 +144,14 @@ public class MonitorService extends Service {
    	   toLaunch.setFlags(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT
    		    |Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
    		    |Intent.FLAG_ACTIVITY_NEW_TASK);
-        PendingIntent resultPendingIntent =
-                PendingIntent.getActivity(
-                        this,
-                        0,
-                        toLaunch,
-                        PendingIntent.FLAG_UPDATE_CURRENT
-                );
-        // In this sample, we'll use the same text for the ticker and the expanded notification
+		PendingIntent resultPendingIntent = PendingIntent.getActivity(
+				this,
+				0,
+				toLaunch,
+				PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+		);
+
+		// In this sample, we'll use the same text for the ticker and the expanded notification
         CharSequence text = getText(R.string.secure_service_started);
 
 		NotificationCompat.Builder mBuilder =
@@ -244,7 +244,7 @@ public class MonitorService extends Service {
 						this,
 						0,
 						resultIntent,
-						PendingIntent.FLAG_UPDATE_CURRENT
+						PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
 				);
 
 		mBuilder.setContentIntent(resultPendingIntent);

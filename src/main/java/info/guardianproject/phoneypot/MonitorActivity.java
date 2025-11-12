@@ -12,7 +12,7 @@ import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Bundle;
 import android.os.Handler;
-import android.support.v4.app.FragmentActivity;
+import androidx.fragment.app.FragmentActivity;
 import android.text.InputType;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -20,6 +20,9 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import info.guardianproject.phoneypot.service.MonitorService;
+
+import info.guardianproject.phoneypot.R;
+
 
 public class MonitorActivity extends FragmentActivity {
 	

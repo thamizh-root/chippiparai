@@ -67,7 +67,7 @@ public class AudioRecorderTask extends Thread {
 		this.filename = prefs.getAudioPath();		
 		this.phoneId = prefs.getPhoneId();
 		this.accessToken = prefs.getAccessToken();
-		Log.i("AudioRecorderTask", "Created recorder");
+		Log.i("AudioRecorderTask", "Created recorder" + this.filename);
 	}
 	
 	@Override
