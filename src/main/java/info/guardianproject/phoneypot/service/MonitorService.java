@@ -1,16 +1,12 @@
-/*
- * Copyright (c) 2013-2015 Marco Ziccardi, Luca Bonato
- * Licensed under the MIT license.
- */
-
 package info.guardianproject.phoneypot.service;
 
-
 import android.annotation.SuppressLint;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -28,122 +24,72 @@ import info.guardianproject.phoneypot.PreferenceManager;
 @SuppressLint("HandlerLeak")
 public class MonitorService extends Service {
 
-	/**
-	 * To show a notification on service start
-	 */
+	private static final String CHANNEL_ID = "monitor_service_channel";
+	private static final int FOREGROUND_NOTIFICATION_ID = 1;
+
 	private NotificationManager manager;
-		
-	/**
-	 * Acceleration detected message
-	 */
 	public static final int ACCELEROMETER_MESSAGE = 0;
-	
-	/**
-	 * Camera motion detected message
-	 */
 	public static final int CAMERA_MESSAGE = 1;
-	
-	/**
-	 * Mic noise detected message
-	 */
 	public static final int MICROPHONE_MESSAGE = 2;
-
-	/**
-	* True only if service has been alerted by the accelerometer
-	*/
-	private boolean already_alerted;
-	
-	/**
-	 * Object used to retrieve shared preferences
-	 */
 	private PreferenceManager prefs = null;
-
-
-	/**
-	 * Incrementing alert id
-	 */
 	int mNotificationAlertId = 7007;
+	AccelerometerMonitor mAccelManager = null;
+	MicrophoneMonitor mMicMonitor = null;
+	PowerManager.WakeLock wakeLock;
+	private int mLastAlert = -1;
 
-    /**
-     * Sensor Monitors
-     */
-    AccelerometerMonitor mAccelManager = null;
-    MicrophoneMonitor mMicMonitor = null;
-
-	/**
-	 * Handler for incoming messages
-	 */
 	class MessageHandler extends Handler {
 		@Override
 		public void handleMessage(Message msg) {
 			alert(msg.what);
 		}
 	}
-		
-	/**
-	 * Messenger interface used by clients to interact
-	 */
+
 	private final Messenger messenger = new Messenger(new MessageHandler());
 
-    /*
-    ** Helps keep the service awake when screen is off
-     */
-    PowerManager.WakeLock wakeLock;
+	@Override
+	public void onCreate() {
+		manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+		prefs = new PreferenceManager(this);
 
-	/**
-	 * Called on service creation, sends a notification
-	 */
-    @Override
-    public void onCreate() {
-        manager = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
-        prefs = new PreferenceManager(this);
+		// startSensors();
 
-        startSensors();
+		showNotification();
 
-        showNotification();
+		PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+		wakeLock = powerManager.newWakeLock(PowerManager.FULL_WAKE_LOCK,
+				"honeypot:MyWakelockTag");
+		wakeLock.acquire(10 * 60 * 1000L); // Acquire WakeLock with 10 minutes timeout
+	}
 
-        PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
-        wakeLock = powerManager.newWakeLock(PowerManager.FULL_WAKE_LOCK,
-                "MyWakelockTag");
-        wakeLock.acquire();
-    }
-    
-    /**
-     * Called on service destroy, cancels persistent notification
-     * and shows a toast
-     */
-    @Override
-    public void onDestroy() {
-
-        wakeLock.release();
-        stopSensors();
+	@Override
+	public void onDestroy() {
+		if (wakeLock != null && wakeLock.isHeld()) {
+			wakeLock.release();
+		}
+		stopSensors();
 		stopForeground(true);
+	}
 
+	@Override
+	public IBinder onBind(Intent intent) {
+		return messenger.getBinder();
+	}
 
-    }
-	
-    /**
-     * When binding to the service, we return an interface to our messenger
-     * for sending messages to the service.
-     */
-    @Override
-    public IBinder onBind(Intent intent) {
-        return messenger.getBinder();
-    }
-    
-    /**
-     * Show a notification while this service is running.
-     */
-    @SuppressWarnings("deprecation")
+	private void createNotificationChannel() {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+			NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Monitor Service Channel",
+					NotificationManager.IMPORTANCE_LOW);
+			manager.createNotificationChannel(channel);
+		}
+	}
+
+	@SuppressWarnings("deprecation")
 	private void showNotification() {
-    	
+		createNotificationChannel();
 
-    	Intent toLaunch = new Intent(getApplicationContext(),
-    	                                          MonitorActivity.class);
-
-   	   toLaunch.setFlags(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT
-   		    |Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-   		    |Intent.FLAG_ACTIVITY_NEW_TASK);
+		Intent toLaunch = new Intent(getApplicationContext(), MonitorActivity.class);
+		toLaunch.setFlags(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_NEW_TASK);
 		PendingIntent resultPendingIntent = PendingIntent.getActivity(
 				this,
 				0,
@@ -151,106 +97,75 @@ public class MonitorService extends Service {
 				PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
 		);
 
-		// In this sample, we'll use the same text for the ticker and the expanded notification
-        CharSequence text = getText(R.string.secure_service_started);
+		CharSequence text = getText(R.string.secure_service_started);
 
-		NotificationCompat.Builder mBuilder =
-				new NotificationCompat.Builder(this)
-						.setSmallIcon(R.drawable.ic_phone_alert)
-						.setContentTitle(getString(R.string.app_name))
-						.setContentText(text);
+		NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, CHANNEL_ID)
+				.setSmallIcon(R.drawable.ic_phone_alert)
+				.setContentTitle(getString(R.string.app_name))
+				.setContentText(text)
+				.setContentIntent(resultPendingIntent)
+				.setPriority(NotificationCompat.PRIORITY_LOW);
 
+		startForeground(FOREGROUND_NOTIFICATION_ID, mBuilder.build());
+	}
 
-        mBuilder.setContentIntent(resultPendingIntent);
+	private void startSensors() {
+		mAccelManager = new AccelerometerMonitor(this);
+		mMicMonitor = new MicrophoneMonitor(this);
+	}
 
-		startForeground(0, mBuilder.build());
+	private void stopSensors() {
+		if (mAccelManager != null) mAccelManager.stop(this);
+		if (mMicMonitor != null) mMicMonitor.stop(this);
+	}
 
+	private synchronized void alert(int alertType) {
+		if (alertType == mLastAlert)
+			return;
 
-    }
+		StringBuilder alertMessage = new StringBuilder();
+		alertMessage.append(getString(R.string.intrusion_detected));
 
-    private void startSensors ()
-    {
-        mAccelManager = new AccelerometerMonitor(this);
-        mMicMonitor = new MicrophoneMonitor(this);
+		switch (alertType) {
+			case ACCELEROMETER_MESSAGE:
+				alertMessage.append(": Device was moved!");
+				break;
+			case MICROPHONE_MESSAGE:
+				alertMessage.append(": Noise detected!");
+				break;
+			case CAMERA_MESSAGE:
+				alertMessage.append(": Camera motion detected!");
+				break;
+		}
 
-    }
+		alertMessage.append(" @ ").append(new Date().toLocaleString());
 
-    private void stopSensors ()
-    {
-        mAccelManager.stop(this);
-        mMicMonitor.stop(this);
-    }
-
-    private int mLastAlert = -1;
-
-    /**
-    * Sends an alert according to type of connectivity
-    */
-    private synchronized void alert(int alertType) {
-
-        if (alertType == mLastAlert)
-            return;
-
-        StringBuffer alertMessage = new StringBuffer();
-
-        alertMessage.append(getString(R.string.intrusion_detected));
-
-        switch (alertType)
-        {
-            case MonitorService.ACCELEROMETER_MESSAGE:
-                alertMessage.append(": Device was moved!");
-                break;
-            case MonitorService.MICROPHONE_MESSAGE:
-                alertMessage.append(": Noise detected!");
-                break;
-            case MonitorService.CAMERA_MESSAGE:
-                alertMessage.append(": Camera motion detected!");
-                break;
-        }
-
-        alertMessage.append(" @ " + new Date().toLocaleString());
-
-		/*
-		 * If SMS mode is on we send an SMS alert to the specified 
-		 * number
-		 */
 		if (prefs.getSmsActivation()) {
-			//get the manager
-			SmsManager manager = SmsManager.getDefault();
-			manager.sendTextMessage(prefs.getSmsNumber(), null, alertMessage.toString(), null, null);
-			
+			SmsManager smsManager = SmsManager.getDefault();
+			smsManager.sendTextMessage(prefs.getSmsNumber(), null, alertMessage.toString(), null, null);
 		}
 
 		showNotificationAlert(alertMessage.toString());
 
-        mLastAlert = alertType;
-    }
+		mLastAlert = alertType;
+	}
 
-	private void showNotificationAlert (String message)
-	{
-
-		NotificationCompat.Builder mBuilder =
-				new NotificationCompat.Builder(this)
-						.setSmallIcon(R.drawable.ic_phone_alert)
-						.setContentTitle(getString(R.string.app_name))
-						.setContentText(message);
+	private void showNotificationAlert(String message) {
+		NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, CHANNEL_ID)
+				.setSmallIcon(R.drawable.ic_phone_alert)
+				.setContentTitle(getString(R.string.app_name))
+				.setContentText(message);
 
 		Intent resultIntent = new Intent(this, MonitorActivity.class);
-
-// Because clicking the notification opens a new ("special") activity, there's
-// no need to create an artificial back stack.
-		PendingIntent resultPendingIntent =
-				PendingIntent.getActivity(
-						this,
-						0,
-						resultIntent,
-						PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-				);
+		PendingIntent resultPendingIntent = PendingIntent.getActivity(
+				this,
+				0,
+				resultIntent,
+				PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+		);
 
 		mBuilder.setContentIntent(resultPendingIntent);
 
 		manager.notify(mNotificationAlertId++, mBuilder.build());
-
-
 	}
 }

@@ -1,13 +1,13 @@
 <resources>
 
-    <string name="app_name">PhoneyPot</string>
+    <string name="app_name">HoneyPot</string>
 
     <string name="menu_stop">STOP</string>
 
     <string name="menu_start">START</string>
 
 
-    <string name="title_activity_start">PhoneyPot</string>
+    <string name="title_activity_start">HoneyPot</string>
 
     <string name="accelerometer_prompt">
     	Set movement &amp; vibration sensitivity
@@ -66,9 +66,9 @@
 
     <string name="unlock_title">Set Unlock Pin</string>
     
-    <string name="secure_service_started">Phoneypot monitoring activated</string>
+    <string name="secure_service_started">HoneyPot monitoring activated</string>
     
-    <string name="secure_service_stopped">Phoneypot monitoring deactivated</string>
+    <string name="secure_service_stopped">HoneyPot monitoring deactivated</string>
 
     <string name="intrusion_detected">An intrusion was detected.</string>
 </resources>
